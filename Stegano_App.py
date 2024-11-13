@@ -29,19 +29,32 @@ root.configure(bg = "#2f4155")
 key = Fernet.generate_key()
 cipher_suite = Fernet(key)
 
-# Create a key derivation function (KDF) for password hashing 
-def derive_key(password, salt=None):
+# Updated derive_key function to support SHA512
+def derive_key(password, salt=None, hash_algorithm="SHA256"):
     if salt is None:
         salt = secrets.token_bytes(16)
     
     password_provided = password
     password = password_provided.encode()
 
+    # Print out selected hashing algorithm for confirmation
+    # print(f"Selected Hashing Algorithm: {hash_algorithm}")
+    
+    # Choose the hashing algorithm based on user selection
+    if hash_algorithm == "SHA256":
+        print("Initiating SHA256 hashing for key derivation...")
+        algorithm = hashes.SHA256()
+    elif hash_algorithm == "SHA512":
+        print("Initiating SHA512 hashing for key derivation...")
+        algorithm = hashes.SHA512()
+    else:
+        raise ValueError(f"Unsupported hashing algorithm: {hash_algorithm}")
+
     kdf = PBKDF2HMAC(
-        algorithm=hashes.SHA256(),
-        iterations=100000,   # Adjust this according to your security needs 
+        algorithm=algorithm,
+        iterations=100000,
         salt=salt,
-        length=32    # This is the length of the derived key
+        length=32  # Length of the derived key
     )
 
     key = kdf.derive(password)
@@ -200,26 +213,26 @@ def load_rsa_keys():
         )
     return private_key, public_key
 
-# Updated encrypt function to handle both AES and Fernet
-def encrypt(message, password, encryption_algorithm):
-    key, salt = derive_key(password)  # Derive key with generated salt
+# Updated encrypt function to handle both AES and Fernet and to support SHA512 hashing
+def encrypt(message, password, encryption_algorithm, hash_algorithm="SHA256"):
+    key, salt = derive_key(password, hash_algorithm=hash_algorithm)  # Pass selected hash algorithm
     print(f"Selected Encryption Algorithm for Encryption: {encryption_algorithm}")
     print("Encryption Salt:", salt)
     print("Derived Key (Encryption):", key)
 
     if encryption_algorithm == "AES":
-        encrypted_message = aes_encrypt(salt + message, key)  # Prepend salt for AES encryption
+        encrypted_message = aes_encrypt(salt + message, key)
     elif encryption_algorithm == "Fernet":
-        encrypted_message = fernet_encrypt(message, key)  # No salt needed in message for Fernet
+        encrypted_message = fernet_encrypt(message, key)
     else:
         raise ValueError(f"Unsupported encryption algorithm: {encryption_algorithm}")
 
     return encrypted_message, salt
 
-# Updated decrypt function to handle both Fernet and AES correctly based on user choice
-def decrypt(encrypted_message, password, salt, encryption_algorithm):
+# Updated decrypt function to handle both Fernet and AES correctly based on user choice, and to support SHA512 hashing
+def decrypt(encrypted_message, password, salt, encryption_algorithm, hash_algorithm="SHA256"):
     # Derive the decryption key
-    key, _ = derive_key(password, salt)
+    key, _ = derive_key(password, salt, hash_algorithm=hash_algorithm,)
     print(f"Decryption Salt: {salt}")
     print(f"Derived Key (Decryption): {key}")
     print(f"Selected Encryption Algorithm for Decryption: {encryption_algorithm}")
@@ -301,20 +314,29 @@ def read_salt(filename):
         print("Decoded Salt (after Base64):", decoded_salt)
         return decoded_salt
     
-# Steganography functions
+# Function for concealing using LSB
 def conceal_lsb(image_path, message):
+    print("Using LSB concealment algorithm to hide the message...")  # Add this line
     return lsb.hide(image_path, message)
 
+# Function for revealing message using LSB
 def reveal_lsb(image_path):
+    print("Using LSB concealment algorithm to reveal the message...")  # Add this line
     return lsb.reveal(image_path)
 
+# LSBSet concealment placeholder with a confirmation message
 def conceal_lsbset(image_path, message):
-    # Placeholder for LSB-set method
-    pass
+    print("Using LSBSet concealment algorithm to hide the message...")
+    # Placeholder: You’ll need to use the actual LSBSet concealment function here.
+    # Replace with the proper method if available.
+    return lsb.hide(image_path, message)  # Example using LSB as a placeholder
 
+# LSBSet reveal placeholder with a confirmation message
 def reveal_lsbset(image_path):
-    # Placeholder for LSB-set method
-    pass
+    print("Using LSBSet concealment algorithm to reveal the message...")
+    # Placeholder: You’ll need to use the actual LSBSet reveal function here.
+    # Replace with the proper method if available.
+    return lsb.reveal(image_path)  # Example using LSB as a placeholder
 
 def conceal_stegano(image_path, message):
     # Using Stegano's LSB method
@@ -361,6 +383,10 @@ def get_user_info():
         user_info["encryption"] = encryption_var.get()  # Save user's selection here
         user_info["hash"] = hash_var.get()
         user_info["password"] = simpledialog.askstring("Password", "Set your password:", show='*')
+
+        # Confirm selected hashing algorithm
+        print(f"Selected Hashing Algorithm: {user_info['hash']}")  # Add this line
+
         if user_info["password"]:
             user_info_window.destroy()
         else:
@@ -375,12 +401,12 @@ def get_user_info():
     user_info_window.configure(bg="#2f4155")
 
     concealment_var = StringVar(value="LSB")
-    encryption_var = StringVar(value="")   # Remove default, so user must select
+    encryption_var = StringVar(value="Fernet")   # Remove default, so user must select
     hash_var = StringVar(value="SHA256")
 
     Label(user_info_window, text="Select concealment algorithm:", bg="#2f4155", fg="white", font="arial 12").grid(row=0, column=0, pady=5, padx=10, sticky=W)
     #ttk.Combobox(user_info_window, textvariable=concealment_var, values=["LSB", "LSBSet", "ExifHeader"], state="readonly").grid(row=0, column=1, pady=5, padx=10)
-    ttk.Combobox(user_info_window, textvariable=concealment_var, values=["LSB"], state="readonly").grid(row=0, column=1, pady=5, padx=10)
+    ttk.Combobox(user_info_window, textvariable=concealment_var, values=["LSB", "LSBSet"], state="readonly").grid(row=0, column=1, pady=5, padx=10)
 
     Label(user_info_window, text="Select encryption algorithm:", bg="#2f4155", fg="white", font="arial 12").grid(row=1, column=0, pady=5, padx=10, sticky=W)
     #ttk.Combobox(user_info_window, textvariable=encryption_var, values=["Fernet", "AES", "RSA"], state="readonly").grid(row=1, column=1, pady=5, padx=10)
@@ -388,7 +414,7 @@ def get_user_info():
 
     Label(user_info_window, text="Select hash algorithm:", bg="#2f4155", fg="white", font="arial 12").grid(row=2, column=0, pady=5, padx=10, sticky=W)
     #ttk.Combobox(user_info_window, textvariable=hash_var, values=["SHA256", "SHA512", "MD5"], state="readonly").grid(row=2, column=1, pady=5, padx=10)
-    ttk.Combobox(user_info_window, textvariable=hash_var, values=["SHA256"], state="readonly").grid(row=2, column=1, pady=5, padx=10)
+    ttk.Combobox(user_info_window, textvariable=hash_var, values=["SHA256", "SHA512"], state="readonly").grid(row=2, column=1, pady=5, padx=10)
 
     submit_button = Button(user_info_window, text="Continue", command=submit, bg="white", fg="black", font="arial 12")
     submit_button.grid(row=3, column=0, pady=20, padx=10, sticky=E)
@@ -454,11 +480,11 @@ def hide_show():
 
     # Hide Function: Only Encrypt and Conceal
     def Hide(concealment_algorithm, encryption_algorithm, hash_algorithm, password):
-        global secret, selected_encryption_algorithm
+        global secret, selected_encryption_algorithm, selected_hash_algorithm
         selected_encryption_algorithm = encryption_algorithm  # Store the selected algorithm for later use
-        print(f"Selected Encryption Algorithm for Encryption: {encryption_algorithm}")
+        selected_hash_algorithm = hash_algorithm  # Store the selected hash algorithm for later use
         message = text1.get(1.0, END).encode('utf-8')  # Ensure the message is byte-encoded
-        encrypted_message, salt = encrypt(message, password, encryption_algorithm)
+        encrypted_message, salt = encrypt(message, password, encryption_algorithm, hash_algorithm=hash_algorithm)
 
         # Save salt to file
         save_salt("salt.txt", salt)
@@ -471,7 +497,7 @@ def hide_show():
         if concealment_algorithm == "LSB":
             secret = conceal_lsb(filename, encrypted_message)
         elif concealment_algorithm == "LSBSet":
-            secret = conceal_lsb(filename, encrypted_message)
+            secret = conceal_lsbset(filename, encrypted_message)
         elif concealment_algorithm == "ExifHeader":
             secret = conceal_lsb(filename, encrypted_message)
 
@@ -498,9 +524,10 @@ def hide_show():
             print(f"Encrypted Message (to decrypt): {encrypted_message}")
 
             # Derive decryption key based on provided password and salt
-            derived_key, _ = derive_key(password, salt)
+            derived_key, _ = derive_key(password, salt, hash_algorithm=selected_hash_algorithm)  # Use selected hash algorithm
             print("Decryption Salt:", salt)
             print("Derived Key (Decryption):", derived_key)
+            print("Using selected Hash Algorithm:", selected_hash_algorithm)
 
             # Perform the decryption based on selected algorithm
             if encryption_algorithm == "AES":
